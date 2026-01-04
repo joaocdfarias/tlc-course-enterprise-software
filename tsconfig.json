@@ -30,5 +30,5 @@
       "@resource/*": ["./resource/*"]
     }
   },
-  "include": ["src/**/*", "test/**/*", "jest.config.ts"]
+  "include": ["src/**/*", "test/**/*", "jest.config.ts", "prisma.config.ts"]
 }

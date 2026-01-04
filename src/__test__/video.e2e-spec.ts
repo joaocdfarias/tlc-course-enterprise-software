@@ -1,11 +1,11 @@
 import { HttpStatus, INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AppModule } from '@src/app.module';
+import { PrismaService } from '@src/persistence/prisma/prisma.service';
 import fs from 'fs';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { PrismaService } from '../src/prisma.service';
 
-describe('VideoController (e2e)', () => {
+describe('ContentController (e2e)', () => {
   let module: TestingModule;
   let app: INestApplication;
   let prismaService: PrismaService;
@@ -18,13 +18,7 @@ describe('VideoController (e2e)', () => {
     app = module.createNestApplication();
     await app.init();
 
-    prismaService = app.get<PrismaService>(PrismaService);
-  });
-
-  beforeEach(() => {
-    jest
-      .useFakeTimers({ advanceTimers: true })
-      .setSystemTime(new Date('2024-01-01T00:00:00Z'));
+    prismaService = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(async () => {
@@ -32,23 +26,23 @@ describe('VideoController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await module.close();
+    module.close();
     fs.rmSync('./uploads', { recursive: true, force: true });
   });
 
-  describe('POST /videos', () => {
+  describe('/video (POST)', () => {
     it('uploads a video', async () => {
       const video = {
         title: 'Test Video',
         description: 'This is a test video',
-        videoUrl: 'uploads/test-video.mp4',
-        thumbnailUrl: 'uploads/test-thumbnail.jpg',
+        videoUrl: 'uploads/test.mp4',
+        thumbnailUrl: 'uploads/test.jpg',
         sizeInKb: 199,
         duration: 100,
       };
 
       await request(app.getHttpServer())
-        .post('/video')
+        .post('/content/video')
         .attach('video', './test/fixtures/sample.mp4')
         .attach('thumbnail', './test/fixtures/sample.jpg')
         .field('title', video.title)
@@ -58,8 +52,8 @@ describe('VideoController (e2e)', () => {
           expect(response.body).toMatchObject({
             title: video.title,
             description: video.description,
-            url: expect.stringContaining('mp4') as string,
-            thumbnailUrl: expect.stringContaining('jpg') as string,
+            url: expect.stringContaining('mp4'),
+            thumbnailUrl: expect.stringContaining('jpg'),
             sizeInKb: video.sizeInKb,
             duration: video.duration,
           });
@@ -77,7 +71,7 @@ describe('VideoController (e2e)', () => {
       };
 
       await request(app.getHttpServer())
-        .post('/video')
+        .post('/content/video')
         .attach('video', './test/fixtures/sample.mp4')
         .field('title', video.title)
         .field('description', video.description)
@@ -102,7 +96,7 @@ describe('VideoController (e2e)', () => {
       };
 
       await request(app.getHttpServer())
-        .post('/video')
+        .post('/content/video')
         .attach('video', './test/fixtures/sample.mp3')
         .attach('thumbnail', './test/fixtures/sample.jpg')
         .field('title', video.title)
@@ -114,6 +108,41 @@ describe('VideoController (e2e)', () => {
           error: 'Bad Request',
           statusCode: 400,
         });
+    });
+  });
+
+  describe('GET /stream/:videoId', () => {
+    it('streams a video', async () => {
+      const { body: sampleVideo } = await request(app.getHttpServer())
+        .post('/content/video')
+        .attach('video', './test/fixtures/sample.mp4')
+        .attach('thumbnail', './test/fixtures/sample.jpg')
+        .field('title', 'Test Video')
+        .field('description', 'This is a test video')
+        .expect(HttpStatus.CREATED);
+
+      const stat = fs.statSync('./test/fixtures/sample.mp4');
+      const fileSize = stat.size;
+      const range = `bytes=0-${fileSize - 1}`;
+
+      const response = await request(app.getHttpServer())
+        .get(`/content/stream/${sampleVideo.id}`)
+        .set('Range', range)
+        .buffer(true)
+        .expect(HttpStatus.PARTIAL_CONTENT);
+
+      expect(response.headers['content-range']).toBe(
+        `bytes 0-${fileSize - 1}/${fileSize}`,
+      );
+      expect(response.headers['accept-ranges']).toBe('bytes');
+      expect(response.headers['content-length']).toBe(String(fileSize));
+      expect(response.headers['content-type']).toBe('video/mp4');
+    });
+
+    it('returns 404 if the video is not found', async () => {
+      await request(app.getHttpServer())
+        .get('/content/stream/45705b56-a47f-4869-b736-8f6626c940f8')
+        .expect(HttpStatus.NOT_FOUND);
     });
   });
 });
