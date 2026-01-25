@@ -1,8 +1,8 @@
-import { Expose } from "class-transformer";
-import { IsDate, IsString, IsUUID } from "class-validator";
+import { Expose } from 'class-transformer';
+import { IsDate, IsString, IsUUID } from 'class-validator';
 
 export class CreateVideoResponseDto {
-  @IsUUID()
+  @IsUUID(4)
   @Expose()
   id!: string;
 

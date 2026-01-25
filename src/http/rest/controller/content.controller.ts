@@ -2,28 +2,22 @@ import {
   BadRequestException,
   Body,
   Controller,
-  Get,
-  Header,
   HttpCode,
   HttpStatus,
-  Param,
   Post,
   Req,
-  Res,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ContentManagementService } from '@src/core/service/content-management.service';
 import { MediaPlayerService } from '@src/core/service/media-player.service';
+import { CreateVideoResponseDto } from '@src/http/rest/dto/response/create-video-response.dto';
+import { RestResponseInterceptor } from '@src/http/rest/interceptor/rest-response.interceptor';
 import { randomUUID } from 'crypto';
-import express from 'express';
-import fs from 'fs';
+import { Request } from 'express';
 import { diskStorage } from 'multer';
-import path, { extname } from 'path';
-import { VideoNotFoundException } from '../../../core/exception/video-not-found.exception';
-import { CreateVideoResponseDto } from '../dto/response/create-video-response.dto';
-import { RestResponseInterceptor } from '../interceptor/rest-response.interceptor';
+import { extname } from 'path';
 
 @Controller('content')
 export class ContentController {
@@ -67,7 +61,7 @@ export class ContentController {
   )
   @UseInterceptors(new RestResponseInterceptor(CreateVideoResponseDto))
   async uploadVideo(
-    @Req() _req: express.Request,
+    @Req() _req: Request,
     @Body()
     contentData: {
       title: string;
@@ -85,66 +79,27 @@ export class ContentController {
       );
     }
 
-    return this.contentManagementService.createContent({
+    const createdContent = await this.contentManagementService.createContent({
       title: contentData.title,
       description: contentData.description,
       url: videoFile.path,
       thumbnailUrl: thumbnailFile.path,
       sizeInKb: videoFile.size,
     });
-  }
 
-  @Get('stream/:videoId')
-  @Header('Content-Type', 'video/mp4')
-  async streamVideo(
-    @Param('videoId') videoId: string,
-    @Req() req: express.Request,
-    @Res() res: express.Response,
-  ) {
-    try {
-      const url = await this.mediaPlayerService.prepareStreaming(videoId);
+    const video = createdContent.getMedia()?.getVideo();
 
-      if (!url) {
-        return res.sendStatus(HttpStatus.NOT_FOUND);
-      }
-      const videoPath = path.join('.', url);
-      const fileSize = fs.statSync(videoPath).size;
-
-      const range = req.headers.range;
-
-      if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-        const chunksize = end - start + 1;
-        const file = fs.createReadStream(videoPath, { start, end });
-
-        res.writeHead(HttpStatus.PARTIAL_CONTENT, {
-          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-          'Accept-Ranges': 'bytes',
-          'Content-Length': chunksize,
-          'Content-Type': 'video/mp4',
-        });
-
-        file.pipe(res);
-      } else {
-        res.writeHead(HttpStatus.OK, {
-          'Content-Length': fileSize,
-          'Content-Type': 'video/mp4',
-        });
-        fs.createReadStream(videoPath).pipe(res);
-      }
-    } catch (error) {
-      if (error instanceof VideoNotFoundException) {
-        return res.status(HttpStatus.NOT_FOUND).send({
-          message: error.message,
-          error: 'Not Found',
-          statusCode: HttpStatus.NOT_FOUND,
-        });
-      }
-
-      throw error;
+    if (!video) {
+      throw new BadRequestException('Video must be present');
     }
+
+    return {
+      id: createdContent.getId(),
+      title: createdContent.getTitle(),
+      description: createdContent.getDescription(),
+      url: video.getUrl(),
+      createdAt: createdContent.getCreatedAt(),
+      updatedAt: createdContent.getUpdatedAt(),
+    };
   }
 }
