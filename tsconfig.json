@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "allowJs": false,
     "allowSyntheticDefaultImports": true,
     "alwaysStrict": true,
@@ -13,7 +14,9 @@
     "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true,
     "incremental": true,
-    "lib": ["es2020"],
+    "lib": [
+      "es2020"
+    ],
     "module": "CommonJS",
     "moduleResolution": "node",
     "noFallthroughCasesInSwitch": true,
@@ -22,8 +25,12 @@
     "noUnusedParameters": true,
     "outDir": "./dist",
     "paths": {
-      "@src/*": ["./src/*"],
-      "@resource/*": ["./resource/*"]
+      "@src/*": [
+        "./src/*"
+      ],
+      "@resource/*": [
+        "./resource/*"
+      ]
     },
     "removeComments": true,
     "resolveJsonModule": true,
@@ -35,5 +42,8 @@
     "strictNullChecks": true,
     "target": "es2020"
   },
-  "include": ["src/**/*", "test/**/*"]
+  "include": [
+    "src/**/*",
+    "test/**/*"
+  ]
 }
